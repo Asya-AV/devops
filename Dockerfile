@@ -1,18 +1,18 @@
-FROM alpine:3.18
+FROM python:3.10-alpine
 
-RUN apk add --no-cache nginx && \
-    mkdir -p /var/www/web && \
-    mkdir -p /run/nginx && \
-    adduser -D -g 'www' www && \
-    chown -R www:www /var/lib/nginx && \
-    chown -R www:www /var/www/web
+RUN apk add --no-cache postgresql-dev gcc python3-dev musl-dev && \
+    rm -rf /var/cache/apk/*
 
-COPY nginx.conf /etc/nginx/nginx.conf
+WORKDIR /app
 
-WORKDIR /var/www/web
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 8080
+RUN find /app -type f -name "*:Zone.Identifier" -delete
 
-USER www
+RUN adduser -D myuser && chown -R myuser:myuser /app
+USER myuser
 
-CMD ["nginx", "-g", "daemon off;"]
+COPY --chown=myuser:myuser . .
+
+CMD ["sh", "-c", "flask db init || true && flask db migrate -m 'Initial' || true && flask db upgrade || true && flask run --host=0.0.0.0"]
