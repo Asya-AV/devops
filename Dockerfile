@@ -1,18 +1,25 @@
-FROM python:3.10-alpine
-
-RUN apk add --no-cache postgresql-dev gcc python3-dev musl-dev && \
-    rm -rf /var/cache/apk/*
+# Stage 1: Build
+FROM golang:1.24.1-alpine AS builder
+RUN apk add --no-cache git
 
 WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+RUN go build -o echo_web .
 
-RUN find /app -type f -name "*:Zone.Identifier" -delete
+# Stage 2: Runtime
+FROM alpine:latest
 
-RUN adduser -D myuser && chown -R myuser:myuser /app
+RUN adduser -D myuser
+
+WORKDIR /app
+COPY --from=builder /app/echo_web .
+
+RUN chown -R myuser:myuser /app
+RUN rm -rf /var/cache/*
+
 USER myuser
-
-COPY --chown=myuser:myuser . .
-
-CMD ["sh", "-c", "flask db init || true && flask db migrate -m 'Initial' || true && flask db upgrade || true && flask run --host=0.0.0.0"]
+EXPOSE 8080
+CMD ["./echo_web"]
